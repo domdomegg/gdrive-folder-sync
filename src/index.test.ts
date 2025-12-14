@@ -1,23 +1,36 @@
 import {test, expect} from 'vitest';
-import {multiply, sum} from './index';
+import {
+	loadConfig, getExcludedFiles, CONFIG_FILENAME, STATE_FILENAME,
+} from './config.js';
+import * as fs from 'fs';
+import * as path from 'path';
+import * as os from 'os';
 
-test('adds positive numbers', () => {
-	expect(sum(1, 3)).toBe(4);
-	expect(sum(10001, 1345)).toBe(11346);
+test('getExcludedFiles returns expected files', () => {
+	const excluded = getExcludedFiles();
+	expect(excluded).toContain(CONFIG_FILENAME);
+	expect(excluded).toContain(STATE_FILENAME);
+	expect(excluded).toContain('.DS_Store');
 });
 
-test('adds negative numbers', () => {
-	expect(sum(-1, -3)).toBe(-4);
-	expect(sum(-10001, -1345)).toBe(-11346);
+test('loadConfig expands ~ paths', () => {
+	const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gdrive-sync-test-'));
+	const configPath = path.join(tmpDir, 'config.json');
+
+	fs.writeFileSync(configPath, JSON.stringify({
+		localPath: '~/my-folder',
+		gdriveFolderId: 'test-folder-id',
+		tokenFile: '~/.config/gdrive-folder-sync/tokens.json',
+	}));
+
+	const config = loadConfig(configPath);
+
+	expect(config.localPath).toBe(path.join(os.homedir(), 'my-folder'));
+	expect(config.tokenFile).toBe(path.join(os.homedir(), '.config/gdrive-folder-sync/tokens.json'));
+	expect(config.gdriveFolderId).toBe('test-folder-id');
+	expect(config.debounceMs).toBe(15_000);
+	expect(config.pollIntervalMs).toBe(900_000);
+
+	fs.rmSync(tmpDir, {recursive: true});
 });
 
-test('adds a negative and positive number', () => {
-	expect(sum(1, -3)).toBe(-2);
-	expect(sum(-10001, 1345)).toBe(-8656);
-});
-
-test('multiplies positive numbers', () => {
-	expect(multiply(1, 3)).toBe(3);
-	expect(multiply(2, 3)).toBe(6);
-	expect(multiply(10001, 1345)).toBe(13451345);
-});

@@ -1,19 +1,23 @@
 {
-  "name": "typescript-library-template",
-  "version": "0.0.0",
-  "description": "Template for creating TypeScript libraries",
+  "name": "gdrive-folder-sync",
+  "version": "0.0.1",
+  "description": "Bidirectional sync between a local folder and Google Drive",
   "license": "MIT",
   "author": "Adam Jones (domdomegg)",
   "repository": {
     "type": "git",
-    "url": "https://github.com/domdomegg/typescript-library-template.git"
+    "url": "git@github.com:domdomegg/gdrive-folder-sync.git"
   },
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "bin": {
+    "gdrive-folder-sync": "dist/index.js"
+  },
   "files": [
     "dist"
   ],
   "scripts": {
+    "start": "tsx src/index.ts",
     "test": "vitest run",
     "test:watch": "vitest --watch",
     "lint": "eslint",
@@ -21,11 +25,16 @@
     "build": "tsc --project tsconfig.build.json",
     "prepublishOnly": "npm run clean && npm run build"
   },
+  "dependencies": {
+    "chokidar": "^4.0.3"
+  },
   "devDependencies": {
     "@tsconfig/node-lts": "^22.0.2",
+    "@types/node": "^25.0.2",
     "eslint": "^9.32.0",
     "eslint-config-domdomegg": "^2.0.9",
     "tsconfig-domdomegg": "^1.0.0",
+    "tsx": "^4.19.2",
     "typescript": "^5.8.3",
     "vitest": "^3.2.4"
   }
