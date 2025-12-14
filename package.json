@@ -1,6 +1,6 @@
 {
   "name": "gdrive-folder-sync",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "description": "Bidirectional sync between a local folder and Google Drive",
   "license": "MIT",
   "author": "Adam Jones (domdomegg)",
