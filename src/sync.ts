@@ -179,10 +179,18 @@ export class SyncEngine {
 			if (existingId) {
 				parentId = existingId;
 			} else {
+				// Check if folder already exists on GDrive (prevents duplicates when state is lost)
 				// eslint-disable-next-line no-await-in-loop -- sequential folder creation
-				const folder = await this.gdrive.createFolder(part, parentId);
-				this.state.folders[currentPath] = folder.id;
-				parentId = folder.id;
+				const existing = await this.gdrive.findFolder(part, parentId);
+				if (existing) {
+					this.state.folders[currentPath] = existing.id;
+					parentId = existing.id;
+				} else {
+					// eslint-disable-next-line no-await-in-loop -- sequential folder creation
+					const folder = await this.gdrive.createFolder(part, parentId);
+					this.state.folders[currentPath] = folder.id;
+					parentId = folder.id;
+				}
 			}
 		}
 
