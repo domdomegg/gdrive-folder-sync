@@ -98,6 +98,17 @@ export class GDriveClient {
 		});
 	}
 
+	async findFolder(name: string, parentId: string): Promise<GDriveFile | null> {
+		const params = new URLSearchParams({
+			q: `'${parentId}' in parents and name = '${name}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false`,
+			fields: 'files(id, name, mimeType, modifiedTime, parents)',
+			pageSize: '1',
+		});
+
+		const result = await this.request<{files: GDriveFile[]}>(`${DRIVE_API}/files?${params.toString()}`);
+		return result.files[0] ?? null;
+	}
+
 	async uploadFile(name: string, content: Buffer, parentId: string): Promise<GDriveFile> {
 		const token = await this.getValidToken();
 		const metadata = {name, parents: [parentId]};
