@@ -82,8 +82,9 @@ export class SyncEngine {
 		this.saveState();
 	}
 
-	async pull(): Promise<void> {
+	async pull(): Promise<string[]> {
 		console.log('[pull] Checking for remote changes...');
+		const filesToPush: string[] = [];
 
 		const remoteFiles = await this.gdrive.listFilesRecursive(this.config.gdriveFolderId);
 
@@ -107,9 +108,9 @@ export class SyncEngine {
 			const localPath = path.join(this.config.localPath, relativePath);
 			const remoteMtime = new Date(remoteFile.modifiedTime).getTime();
 
-			const shouldDownload = this.shouldDownloadFile(relativePath, localPath, remoteMtime);
+			const action = this.shouldDownloadFile(relativePath, localPath, remoteMtime);
 
-			if (shouldDownload) {
+			if (action === 'download') {
 				// eslint-disable-next-line no-await-in-loop -- sequential file operations
 				const content = await this.gdrive.downloadFile(remoteFile.id);
 				const dir = path.dirname(localPath);
@@ -123,25 +124,38 @@ export class SyncEngine {
 					gdriveMtime: remoteMtime,
 				};
 				console.log(`[pull] Downloaded: ${relativePath}`);
+			} else if (action === 'local-newer') {
+				// Update state with remote's gdriveId so push can update rather than create
+				this.state.files[relativePath] = {
+					gdriveId: remoteFile.id,
+					localMtime: fs.statSync(localPath).mtimeMs,
+					gdriveMtime: remoteMtime,
+				};
+				filesToPush.push(localPath);
 			}
 		}
 
-		// Handle remote deletions
+		// Files in state but not on remote: push them up instead of deleting locally
 		for (const relativePath of Object.keys(this.state.files)) {
 			if (!remoteFiles.has(relativePath)) {
 				const localPath = path.join(this.config.localPath, relativePath);
 				if (fs.existsSync(localPath)) {
-					fs.unlinkSync(localPath);
-					console.log(`[pull] Deleted locally: ${relativePath}`);
+					// Clear stale state so push treats it as a new file
+					// eslint-disable-next-line @typescript-eslint/no-dynamic-delete -- cleaning up state
+					delete this.state.files[relativePath];
+					filesToPush.push(localPath);
+					console.log(`[pull] Not on remote, will push: ${relativePath}`);
+				} else {
+					// File gone both locally and remotely, clean up state
+					// eslint-disable-next-line @typescript-eslint/no-dynamic-delete -- cleaning up state
+					delete this.state.files[relativePath];
 				}
-
-				// eslint-disable-next-line @typescript-eslint/no-dynamic-delete -- cleaning up state
-				delete this.state.files[relativePath];
 			}
 		}
 
 		this.saveState();
 		console.log('[pull] Done');
+		return filesToPush;
 	}
 
 	private loadState(): SyncState {
@@ -212,37 +226,48 @@ export class SyncEngine {
 		}
 	}
 
-	private shouldDownloadFile(relativePath: string, localPath: string, remoteMtime: number): boolean {
+	private shouldDownloadFile(relativePath: string, localPath: string, remoteMtime: number): 'download' | 'skip' | 'local-newer' {
 		const existing = this.state.files[relativePath];
 
 		if (!existing) {
-			// New file from remote
-			return true;
+			// No state entry — either genuinely new from remote, or state was reset
+			if (!fs.existsSync(localPath)) {
+				return 'download';
+			}
+
+			// Local file exists: compare mtimes, newest wins
+			const localMtime = fs.statSync(localPath).mtimeMs;
+			if (remoteMtime > localMtime) {
+				return 'download';
+			}
+
+			console.log(`[pull] Local is newer (no state): ${relativePath}`);
+			return 'local-newer';
 		}
 
 		if (remoteMtime <= existing.gdriveMtime) {
 			// Remote hasn't changed since last sync
-			return false;
+			return 'skip';
 		}
 
 		// Remote is newer than what we last synced
 		// Check if local has also changed
 		if (!fs.existsSync(localPath)) {
-			return true;
+			return 'download';
 		}
 
 		const localMtime = fs.statSync(localPath).mtimeMs;
 		if (localMtime <= existing.localMtime) {
 			// Local hasn't changed, download remote
-			return true;
+			return 'download';
 		}
 
 		// Conflict: both changed. Last-write-wins based on mtime.
 		if (remoteMtime > localMtime) {
-			return true;
+			return 'download';
 		}
 
 		console.log(`[pull] Conflict, local wins: ${relativePath}`);
-		return false;
+		return 'local-newer';
 	}
 }

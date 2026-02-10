@@ -42,7 +42,11 @@ export class Watcher {
 	}
 
 	async pull(): Promise<void> {
-		await this.syncEngine.pull();
+		const filesToPush = await this.syncEngine.pull();
+		if (filesToPush.length > 0) {
+			console.log(`[pull] Pushing ${filesToPush.length} locally-newer files...`);
+			await this.syncEngine.push(filesToPush);
+		}
 	}
 
 	async pushAll(): Promise<void> {
